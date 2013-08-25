@@ -13,3 +13,11 @@ Consumer will pop the envents and execute it.
   g++ -pthread -g simpleQ.c
 
   gdb ./a.out
+
+
+Observations :
+
+ 1. condition wait be enclosed in the equivalent of a "while loop" that checks the predicate.
+	Ref: http://pubs.opengroup.org/onlinepubs/009695399/functions/pthread_cond_wait.html
+
+

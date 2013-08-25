@@ -9,8 +9,6 @@ struct Node
 	void* (*workTodo)(void* arg);
 	int nodeId; 
 };
-long long int q_full_wait=0;
-long long int q_empty_wait=0;
 const int producerTh=1000;
 const int consumerTh=100;
 int counter=0;
@@ -35,24 +33,25 @@ int flag=0;
 void enqueue(queue_t *queue,functptr myfunc)
 {
 	
-	/**************************************************
+	/************************************************************************************************
         *  Locks the Mutex Common for Producer/Consumer.. 
         *  only one can get into the critical region 
-        ***************************************************/ 
+        *************************************************************************************************/ 
         pthread_mutex_lock(&(queue->mutex));
 
 	
-	/**************************************************
+	/************************************************************************************************
  	*     If the Queue is full  (size = capacity)
  	*     a conditional wait is issued. Makes the current thread to sleep.
  	*     yields other thread to lock the mutex
  	*     Waken up by any signal to the conditional variable
  	*
  	*     Drawback: Need CPU cycles to bring back from sleep state to active  
-	***************************************************/
+        *************************************************************************************************/ 
 	while(queue->size==queue->capacity)
+	//if(queue->size==queue->capacity)
 	{
-		q_full_wait++;
+//		printf("Queue Reached Full ::%lu going to sleep\n",pthread_self());
 		pthread_cond_wait(&(queue->q_full),&(queue->mutex));
 	}
 	{
@@ -70,32 +69,32 @@ void enqueue(queue_t *queue,functptr myfunc)
 			queue->head=queue->tail;
 		}
 	}
-        /*******************************************************
+	/************************************************************************************************
  	* current thread releases the mutex
  	* Next thread waiting for the lock gets the mutex
- 	* *****************************************************/
+	*************************************************************************************************/ 
 	pthread_mutex_unlock(&(queue->mutex)); 
 
-	/***************************************************************************
+	/************************************************************************************************
  	* Sending a broadcost to all the threads waiting for the conditional variable
  	*
  	* In this case, wake up call to the consumer, as an Item is ready to pick
- 	* **************************************************************************/
+        *************************************************************************************************/ 
 
 	pthread_cond_broadcast(&(queue->q_empty));
 }
 void dequeue(queue_t *queue)
 {
 
-	/**************************************************
+	/************************************************************************************************
         *  Locks the Mutex Common for Producer/Consumer.. 
         *  only one can get into the critical region 
-        ***************************************************/ 
+        *************************************************************************************************/ 
 	pthread_mutex_lock(&(queue->mutex)); 
 	Node *temp =NULL;
 	
-	/**************************************************
- 	*     If the Queue is full  (size = capacity)
+	/*************************************************************************************************
+ 	*     If the Queue is empty  (size =  0)
  	*     a conditional wait is issued. Makes the current thread to sleep.
  	*     yields other thread to lock the mutex
  	*     Waken up by any signal to the conditional variable
@@ -105,10 +104,11 @@ void dequeue(queue_t *queue)
  	*     Alt: Spin lock may be used. Wasting few cycles is less costlier than waking up from sleep 
  	*     But in single core, it will hung , since during the spin to acquire the lock , 
  	*     CPU  will not provide the other thread to release the mutex  
-	***************************************************/
+	**************************************************************************************************/
 	while(queue->size==0)
+	//if(queue->size==0) //Ref Readme 1
 	{
-		q_empty_wait++;
+//		printf("Queue Reached Empty ::%lu going to sleep\n",pthread_self());
 		pthread_cond_wait(&(queue->q_empty),&(queue->mutex));
 	}
 	{
@@ -130,7 +130,14 @@ void dequeue(queue_t *queue)
 		temp->workTodo(NULL);
 		free(temp);
 	}
+	/************************************************************************************************
+ 	* current thread releases the mutex
+ 	* Next thread waiting for the lock gets the mutex
+        *************************************************************************************************/ 
 	pthread_mutex_unlock(&(queue->mutex)); 
+	/************************************************************************************************
+ 	* Isses a wake up to threads sleeping for conditional wait for qfull conditional variable 	
+        *************************************************************************************************/ 
 	pthread_cond_broadcast(&(queue->q_full));
 }
 

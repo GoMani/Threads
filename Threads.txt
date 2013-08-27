@@ -1,0 +1,13 @@
+PThreads in Linux
+
+pthread_create
+	--> Created using clone syscall
+        --> a pipe is opened to the child process 
+        --> child process executes the function 
+   Q  --> Suspend is called on main thread (parent process or child process) ?
+
+mutex
+       --> has spinlock
+       --> acquire the lock 
+       --> 
+

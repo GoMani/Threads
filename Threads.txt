@@ -2,16 +2,60 @@ PThreads in Linux
 
 pthread_create
 	--> Created using clone syscall
-        --> a pipe is opened to the child process 
-        --> child process executes the function 
-   Q  --> Suspend is called on main thread (parent process or child process) ?
+		int __clone(int (*fn) (void *arg), void *child_stack, int flags, void *args)
+		http://www.linuxjournal.com/article/5211
+        --> a pipe is opened to the child process
+        --> a thread manager is implemented to handle the request on the PIPE read end
+	--> thread manager uses mux using SELECT
+        --> child process (thread mangager) executes the function 
 
+ 
 mutex
        --> has spinlock
-       --> acquire the lock 
-       --> 
+       --> acquire the spinlock using schied yield 
+       --> maintains a queue for threads waiting
+       --> if the queue is empty ie count is zero ...  the current thread gets the lock
+       --> Else  enqueued in tht queue ,and the LWP will be put in suspend mode allowing only PTHREAD_SIG_RESTART to wake up
+     has three types
+      PTHREAD_MUTEX_FAST_NP count =0 on free  , 1 on lock,
+      PTHREAD_MUTEX_RECURSIVE_NP, if the same thread locks,  count ++
+      PTHREAD_MUTEX_ERRORCHECK_NP if the count =0, free to lock, if  same thread locks release spinlock and return DEADLOCK
+Conditional Variable
+     --maintains a waiting Q
+cond_wait
+       -- enqueue the current thread to the conditional variables waiting Q
+      --unlocks the mutex
+      -- suspends the current thread for PTHREAD_SIG_RESTART signal
+signal/broadcast   
+      -- Release it from the conditional variables waiting Q
+      -- gets all threads from the waiting Q handle and sends PTHREAD_SIG_RESTART
+
+spinlock
+   -- Compare and swap the variable in loop..  with sced yield
+
+Compare and swap (long *p, long old value,long new value)
+
+  -- if *p==old value , new value is set to p else  p continues to remain with the current value
+  -- returns 1 if not swapped, 0 if swapped
+  -- implemented in atomic level in ASM  like cmpxhng
+
+sched_setaffinity ??
+A process's CPU affinity mask determines the set of CPUs on which it is eligible to run. On a multiprocessor system, setting the CPU affinity mask can be used to obtain performance benefits. For example, by dedicating one CPU to a particular process (i.e., setting the affinity mask of that process to specify a single CPU, and setting the affinity mask of all other processes to exclude that CPU), it is possible to ensure maximum execution speed for that process. Restricting a process to run on a single CPU also avoids the performance cost caused by the cache invalidation that occurs when a process ceases to execute on one CPU and then recommences execution on a different CPU. 
+
+Ref :
+http://linux.die.net/man/2/sched_setaffinity
 
 
+how threads work in solaris ?
+
+
+Thread Models
+http://cs.brown.edu/research/thmon/thmon2a.html
+
+
+
+GCC asm 
+========
 http://www.delorie.com/djgpp/doc/brennan/brennan_att_inline_djgpp.html
 http://www.ibiblio.org/gferg/ldp/GCC-Inline-Assembly-HOWTO.html
 

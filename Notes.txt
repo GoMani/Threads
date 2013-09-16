@@ -1,0 +1,343 @@
+#define CAST_FROM_FN_PTR(new_type, func_ptr) ((new_type)((address_word)(func_ptr)))
+
+
+#define FN_PTR(f) CAST_FROM_FN_PTR(void*, &f)
+
+
+
+static JNINativeMethod methods_15[] = {
+   {CC"compareAndSwapObject", CC"("OBJ"J"OBJ""OBJ")Z",  FN_PTR(Unsafe_CompareAndSwapObject)},
+
+
+
+status = env->RegisterNatives(unsafecls, methods_15, sizeof(methods_15)/sizeof(JNINativeMethod));
+    }
+static JNINativeMethod methods[] = {
+==========================
+./hotspot/src/share/vm/prims/unsafe.cpp
+
+UNSAFE_ENTRY(jboolean, Unsafe_CompareAndSwapInt(JNIEnv *env, jobject unsafe, jobject obj, jlong offset, jint e, jint x))
+  UnsafeWrapper("Unsafe_CompareAndSwapInt");
+  oop p = JNIHandles::resolve(obj);
+  jint* addr = (jint *) index_oop_from_field_offset_long(p, offset);
+  return (jint)(Atomic::cmpxchg(x, addr, e)) == e;
+UNSAFE_END
+=========================
+
+
+JVM_ENTRY(void, JVM_RegisterUnsafeMethods(JNIEnv *env, jclass unsafecls))
+  UnsafeWrapper("JVM_RegisterUnsafeMethods");
+
+    ThreadToNativeFromVM ttnfv(thread);
+==================
+int status = env->RegisterNatives(unsafecls, methods, sizeof(methods)/sizeof(JNINativeMethod));
+    if (env->ExceptionOccurred()) {
+      if (PrintMiscellaneous && (Verbose || WizardMode)) {
+        tty->print_cr("Warning:  SDK 1.6 version of Unsafe not found.");
+      }
+      env->ExceptionClear();
+      // %%% For now, be backward compatible with an older class:
+      status = env->RegisterNatives(unsafecls, methods_15, sizeof(methods_15)/sizeof(JNINativeMethod));
+    }
+===========================
+Unsafe.java
+public final native boolean compareAndSwapObject(Object o, long offset,
+                                                     Object expected,
+                                                     Object x);
+
+public final native boolean compareAndSwapInt(Object o, long offset,
+                                                  int expected,
+                                                  int x);
+
+============================
+AbstractQueuedSynchronizer.java
+protected final boolean compareAndSetState(int expect, int update) {
+        // See below for intrinsics setup to support this
+        return unsafe.compareAndSwapInt(this, stateOffset, expect, update);
+    }
+
+=======================
+   final void lock() {
+            if (compareAndSetState(0, 1))
+                setExclusiveOwnerThread(Thread.currentThread());
+            else
+                acquire(1);
+        }
+===========================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+setExclusiveOwnerThread
+
+   private transient Thread exclusiveOwnerThread;
+============================
+public synchronized void start() {
+        /**
+         * This method is not invoked for the main method thread or "system"
+         * group threads created/set up by the VM. Any new functionality added
+         * to this method in the future may have to also be added to the VM.
+         *
+         * A zero status value corresponds to state "NEW".
+         */
+        if (threadStatus != 0)
+            throw new IllegalThreadStateException();
+
+        /* Notify the group that this thread is about to be started
+         * so that it can be added to the group's list of threads
+         * and the group's unstarted count can be decremented. */
+        group.add(this);
+
+        boolean started = false;
+        try {
+            start0();
+            started = true;
+        } finally {
+            try {
+                if (!started) {
+                    group.threadStartFailed(this);
+                }
+            } catch (Throwable ignore) {
+                /* do nothing. If start0 threw a Throwable then
+                  it will be passed up the call stack */
+            }
+        }
+    }
+
+============================
+private native void start0();
+====================================
+class Thread implements Runnable {
+    /* Make sure registerNatives is the first thing <clinit> does. */
+    private static native void registerNatives();
+    static {
+        registerNatives();
+    }
+
+============================
+typedef struct {
+    char *name;
+    char *signature;
+    void *fnPtr;
+} JNINativeMethod;
+============================
+    jint RegisterNatives(jclass clazz, const JNINativeMethod *methods,
+                         jint nMethods) {
+        return functions->RegisterNatives(this,clazz,methods,nMethods);
+    }
+
+==========================
+enum {
+    JVM_SIGNATURE_ARRAY         = '[',
+    JVM_SIGNATURE_BYTE          = 'B',
+    JVM_SIGNATURE_CHAR          = 'C',
+    JVM_SIGNATURE_CLASS         = 'L',
+    JVM_SIGNATURE_ENDCLASS      = ';',
+    JVM_SIGNATURE_ENUM          = 'E',
+    JVM_SIGNATURE_FLOAT         = 'F',
+    JVM_SIGNATURE_DOUBLE        = 'D',
+    JVM_SIGNATURE_FUNC          = '(',
+    JVM_SIGNATURE_ENDFUNC       = ')',
+    JVM_SIGNATURE_INT           = 'I',
+    JVM_SIGNATURE_LONG          = 'J',
+    JVM_SIGNATURE_SHORT         = 'S',
+    JVM_SIGNATURE_VOID          = 'V',
+    JVM_SIGNATURE_BOOLEAN       = 'Z'
+};
+============================================
+static JNINativeMethod methods[] = {
+    {"start0",           "()V",        (void *)&JVM_StartThread},
+    {"stop0",            "(" OBJ ")V", (void *)&JVM_StopThread},
+    {"isAlive",          "()Z",        (void *)&JVM_IsThreadAlive},
+    {"suspend0",         "()V",        (void *)&JVM_SuspendThread},
+    {"resume0",          "()V",        (void *)&JVM_ResumeThread},
+    {"setPriority0",     "(I)V",       (void *)&JVM_SetThreadPriority},
+    {"yield",            "()V",        (void *)&JVM_Yield},
+    {"sleep",            "(J)V",       (void *)&JVM_Sleep},
+    {"currentThread",    "()" THD,     (void *)&JVM_CurrentThread},
+    {"countStackFrames", "()I",        (void *)&JVM_CountStackFrames},
+    {"interrupt0",       "()V",        (void *)&JVM_Interrupt},
+    {"isInterrupted",    "(Z)Z",       (void *)&JVM_IsInterrupted},
+    {"holdsLock",        "(" OBJ ")Z", (void *)&JVM_HoldsLock},
+    {"getThreads",        "()[" THD,   (void *)&JVM_GetAllThreads},
+    {"dumpThreads",      "([" THD ")[[" STE, (void *)&JVM_DumpThreads},
+    {"setNativeName",    "(" STR ")V", (void *)&JVM_SetNativeThreadName},
+};
+
+#undef THD
+#undef OBJ
+#undef STE
+#undef STR
+
+JNIEXPORT void JNICALL
+Java_java_lang_Thread_registerNatives(JNIEnv *env, jclass cls)
+{
+    (*env)->RegisterNatives(env, cls, methods, ARRAY_LENGTH(methods));
+}
+================================
+#define JVM_ENTRY(result_type, header)                               \
+extern "C" {                                                         \
+  result_type JNICALL header {                                       \
+    JavaThread* thread=JavaThread::thread_from_jni_environment(env); \
+    ThreadInVMfromNative __tiv(thread);                              \
+    debug_only(VMNativeEntryWrapper __vew;)                          \
+    VM_ENTRY_BASE(result_type, header, thread)
+
+===========
+#define VM_ENTRY_BASE(result_type, header, thread)                   \
+  TRACE_CALL(result_type, header)                                    \
+  HandleMarkCleaner __hm(thread);                                    \
+  Thread* THREAD = thread;                                           \
+  os::verify_stack_alignment();                                      \
+  /* begin of body */
+=====================================
+JVM_ENTRY(void, JVM_StartThread(JNIEnv* env, jobject jthread))
+  JVMWrapper("JVM_StartThread");
+  JavaThread *native_thread = NULL;
+
+  // We cannot hold the Threads_lock when we throw an exception,
+  // due to rank ordering issues. Example:  we might need to grab the
+  // Heap_lock while we construct the exception.
+  bool throw_illegal_thread_state = false;
+
+  // We must release the Threads_lock before we can post a jvmti event
+  // in Thread::start.
+  {
+    // Ensure that the C++ Thread and OSThread structures aren't freed before
+    // we operate.
+    MutexLocker mu(Threads_lock);
+
+    // Since JDK 5 the java.lang.Thread threadStatus is used to prevent
+    // re-starting an already started thread, so we should usually find
+    // that the JavaThread is null. However for a JNI attached thread
+    // there is a small window between the Thread object being created
+    // (with its JavaThread set) and the update to its threadStatus, so we
+    // have to check for this
+    if (java_lang_Thread::thread(JNIHandles::resolve_non_null(jthread)) != NULL) {
+      throw_illegal_thread_state = true;
+    } else {
+      // We could also check the stillborn flag to see if this thread was already stopped, but
+      // for historical reasons we let the thread detect that itself when it starts running
+
+      jlong size =
+             java_lang_Thread::stackSize(JNIHandles::resolve_non_null(jthread));
+      // Allocate the C++ Thread structure and create the native thread.  The
+      // stack size retrieved from java is signed, but the constructor takes
+      // size_t (an unsigned type), so avoid passing negative values which would
+      // result in really large stacks.
+      size_t sz = size > 0 ? (size_t) size : 0;
+      native_thread = new JavaThread(&thread_entry, sz);
+
+      // At this point it may be possible that no osthread was created for the
+      // JavaThread due to lack of memory. Check for this situation and throw
+      // an exception if necessary. Eventually we may want to change this so
+      // that we only grab the lock if the thread was created successfully -
+      // then we can also do this check and throw the exception in the
+      // JavaThread constructor.
+      if (native_thread->osthread() != NULL) {
+        // Note: the current thread is not being used within "prepare".
+        native_thread->prepare(jthread);
+      }
+    }
+  }
+
+  if (throw_illegal_thread_state) {
+    THROW(vmSymbols::java_lang_IllegalThreadStateException());
+  }
+
+  assert(native_thread != NULL, "Starting null thread?");
+
+  if (native_thread->osthread() == NULL) {
+    // No one should hold a reference to the 'native_thread'.
+    delete native_thread;
+    if (JvmtiExport::should_post_resource_exhausted()) {
+      JvmtiExport::post_resource_exhausted(
+        JVMTI_RESOURCE_EXHAUSTED_OOM_ERROR | JVMTI_RESOURCE_EXHAUSTED_THREADS,
+        "unable to create new native thread");
+    }
+    THROW_MSG(vmSymbols::java_lang_OutOfMemoryError(),
+              "unable to create new native thread");
+  }
+
+  Thread::start(native_thread);
+
+JVM_END
+==========================
+
+manikandan@manikandan-VirtualBox:~/apps/openjdk7u/jdk/src/share/classes/java/util/concurrent
+
+
+
+
+switch
+===================
+class SwitchStatement extends Statement {
+SwitchData sw = new SwitchData();
+asm.add(where, opc_tableswitch, sw);
+
+============================
+ public void add(long where, int opc, Object obj) {
+        add(new Instruction(where, opc, obj));
+    }
+
+===============================
+
+
+#define GET_FIELD_VOLATILE(obj, offset, type_name, v) \
+  oop p = JNIHandles::resolve(obj); \
+  volatile type_name v = OrderAccess::load_acquire((volatile type_name*)index_oop_from_field_offset_long(p, offset));
+
+#define SET_FIELD_VOLATILE(obj, offset, type_name, x) \
+  oop p = JNIHandles::resolve(obj); \
+  OrderAccess::release_store_fence((volatile type_name*)index_oop_from_field_offset_long(p, offset), x);
+
+
+=================
+inline void OrderAccess::fence() {
+  if (os::is_MP()) {
+    // always use locked addl since mfence is sometimes expensive
+#ifdef AMD64
+    __asm__ volatile ("lock; addl $0,0(%%rsp)" : : : "cc", "memory");
+#else
+    __asm__ volatile ("lock; addl $0,0(%%esp)" : : : "cc", "memory");
+#endif
+  }
+}
+-------------------------
+
+
+inline void     OrderAccess::release_store_fence(volatile jlong*   p, jlong   v) {
+#ifdef AMD64
+  __asm__ __volatile__ (  "xchgq (%2), %0"
+                          : "=r" (v)
+                          : "0" (v), "r" (p)
+                          : "memory");
+#else
+  release_store(p, v); fence();
+#endif // AMD64
+}
+
+inline void     OrderAccess::release_store_fence(volatile jubyte*  p, jubyte  v) { release_store_fence((volatile jbyte*)p,  (jbyte)v);  }
+inline void     OrderAccess::release_store_fence(volatile jushort* p, jushort v) { release_store_fence((volatile jshort*)p, (jshort)v); }
+inline void     OrderAccess::release_store_fence(volatile juint*   p, juint   v) { release_store_fence((volatile jint*)p,   (jint)v);   }
+inline void     OrderAccess::release_store_fence(volatile julong*  p, julong  v) { release_store_fence((volatile jlong*)p,  (jlong)v);  }
+
+inline void     OrderAccess::release_store_fence(volatile jfloat*  p, jfloat  v) { *p = v; fence(); }
+inline void     OrderAccess::release_store_fence(volatile jdouble* p, jdouble v) { *p = v; fence(); }
+==============================================================
+
+
+
+./jdk/src/share/classes/java/util/concurrent/locks/AbstractOwnableSynchronizer.java
+
